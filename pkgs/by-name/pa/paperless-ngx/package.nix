@@ -4,6 +4,7 @@
   fetchFromGitHub,
   fetchpatch2,
   buildNpmPackage,
+  nodejs_20,
   nixosTests,
   gettext,
   python3,
@@ -53,7 +54,7 @@ let
         {
           inherit version;
           src = src.override {
-            rev = "refs/tags/${version}";
+            tag = version;
             hash = "sha256-GvYdExkNuySrg8ERnWOJxucFe5HVdPAcHfRNeqiVS7M=";
           };
 
@@ -97,6 +98,8 @@ let
   frontend = buildNpmPackage {
     pname = "paperless-ngx-frontend";
     inherit version src;
+
+    nodejs = nodejs_20;  # does not build with 22
 
     postPatch = ''
       cd src-ui
@@ -161,9 +164,12 @@ python.pkgs.buildPythonApplication rec {
   ];
 
   postPatch = ''
-    # pytest-xdist makes the tests flaky
+    # pytest-xdist with to many threads makes the tests flaky
+    if (( $NIX_BUILD_CORES > 4)); then
+      NIX_BUILD_CORES=4
+    fi
     substituteInPlace src/setup.cfg \
-      --replace-fail "--numprocesses auto --maxprocesses=16" ""
+      --replace-fail "--numprocesses auto --maxprocesses=16" "--numprocesses $NIX_BUILD_CORES"
   '';
 
   nativeBuildInputs = [
@@ -277,8 +283,12 @@ python.pkgs.buildPythonApplication rec {
     pytest-httpx
     pytest-mock
     pytest-rerunfailures
+    pytest-xdist
     pytestCheckHook
   ];
+
+  # manually managed in postPatch
+  dontUsePytestXdist = false;
 
   pytestFlagsArray = [
     "src"

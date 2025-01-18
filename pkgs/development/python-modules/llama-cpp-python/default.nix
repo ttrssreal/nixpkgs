@@ -13,9 +13,6 @@
   pyproject-metadata,
   scikit-build-core,
 
-  # buildInputs
-  apple-sdk_11,
-
   # dependencies
   diskcache,
   jinja2,
@@ -38,14 +35,14 @@
 }:
 buildPythonPackage rec {
   pname = "llama-cpp-python";
-  version = "0.3.2";
+  version = "0.3.5";
   pyproject = true;
 
   src = fetchFromGitHub {
     owner = "abetlen";
     repo = "llama-cpp-python";
     tag = "v${version}";
-    hash = "sha256-RtM5acaflUkPOZ/VS3afcMLbsnu6z7D8nXqpN8SR7v8=";
+    hash = "sha256-+LBq+rCqOsvGnhTL1UoCcAwvDt8Zo9hlaa4KibFFDag=";
     fetchSubmodules = true;
   };
   # src = /home/gaetan/llama-cpp-python;
@@ -70,18 +67,14 @@ buildPythonPackage rec {
     scikit-build-core
   ];
 
-  buildInputs =
-    lib.optionals cudaSupport (
-      with cudaPackages;
-      [
-        cuda_cudart # cuda_runtime.h
-        cuda_cccl # <thrust/*>
-        libcublas # cublas_v2.h
-      ]
-    )
-    ++ lib.optionals stdenv.hostPlatform.isDarwin [
-      apple-sdk_11
-    ];
+  buildInputs = lib.optionals cudaSupport (
+    with cudaPackages;
+    [
+      cuda_cudart # cuda_runtime.h
+      cuda_cccl # <thrust/*>
+      libcublas # cublas_v2.h
+    ]
+  );
 
   dependencies = [
     diskcache
