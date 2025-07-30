@@ -2,7 +2,6 @@
   lib,
   stdenv,
   fetchFromGitHub,
-  cacert,
   unicode-emoji,
   unicode-character-database,
   unicode-idna,
@@ -31,21 +30,18 @@
   unstableGitUpdater,
   apple-sdk_14,
   libtommath,
+  angle,
+  fast-float,
 }:
-
-let
-  # Note: The cacert version is synthetic and must match the version in the package's CMake
-  cacert_version = "2025-05-20";
-in
 stdenv.mkDerivation (finalAttrs: {
   pname = "ladybird";
-  version = "0-unstable-2025-06-27";
+  version = "0-unstable-2025-06-27-test";
 
   src = fetchFromGitHub {
     owner = "LadybirdWebBrowser";
     repo = "ladybird";
-    rev = "831ba5d6550fd9dfaf90153876ff42396f7165ac";
-    hash = "sha256-7feXPFKExjuOGbitlAkSEEzYNEZb6hGSDUZW1EJGIW8=";
+    rev = "cf355d48b139cc0d69ebdc860fb72a8d33831523";
+    hash = "sha256-KO8uB5LgplaplBcFEk6vRBKy2l8eG9ucidWwtxJPhQQ=";
   };
 
   postPatch = ''
@@ -62,9 +58,6 @@ stdenv.mkDerivation (finalAttrs: {
     # Note that the versions of the input data packages must match the
     # expected version in the package's CMake.
 
-    # Check that the versions match
-    grep -F 'set(CACERT_VERSION "${cacert_version}")' Meta/CMake/ca_certificates_data.cmake || (echo cacert_version mismatch && exit 1)
-
     mkdir -p build/Caches
 
     cp -r ${unicode-character-database}/share/unicode build/Caches/UCD
@@ -73,10 +66,6 @@ stdenv.mkDerivation (finalAttrs: {
     cp ${unicode-idna}/share/unicode/idna/IdnaMappingTable.txt build/Caches/UCD
     echo -n ${unicode-character-database.version} > build/Caches/UCD/version.txt
     chmod -w build/Caches/UCD
-
-    mkdir build/Caches/CACERT
-    cp ${cacert}/etc/ssl/certs/ca-bundle.crt build/Caches/CACERT/cacert-${cacert_version}.pem
-    echo -n ${cacert_version} > build/Caches/CACERT/version.txt
 
     mkdir build/Caches/PublicSuffix
     cp ${publicsuffix-list}/share/publicsuffix/public_suffix_list.dat build/Caches/PublicSuffix
@@ -114,6 +103,8 @@ stdenv.mkDerivation (finalAttrs: {
       ];
     }))
     woff2
+    angle
+    fast-float
   ]
   ++ lib.optional stdenv.hostPlatform.isLinux [
     libpulseaudio.dev
@@ -127,11 +118,9 @@ stdenv.mkDerivation (finalAttrs: {
     # Takes an enormous amount of resources, even with mold
     (lib.cmakeBool "ENABLE_LTO_FOR_RELEASE" false)
     # Disable network operations
-    "-DSERENITY_CACHE_DIR=Caches"
+    "-DLADYBIRD_CACHE_DIR=Caches"
     "-DENABLE_NETWORK_DOWNLOADS=OFF"
-  ]
-  ++ lib.optionals stdenv.hostPlatform.isLinux [
-    "-DCMAKE_INSTALL_LIBEXECDIR=libexec"
+    "-DCMAKE_INSTALL_DATADIR=${placeholder "out"}/share"
   ];
 
   # FIXME: Add an option to -DENABLE_QT=ON on macOS to use Qt rather than Cocoa for the GUI
@@ -141,40 +130,10 @@ stdenv.mkDerivation (finalAttrs: {
   # https://github.com/LadybirdBrowser/ladybird/issues/371#issuecomment-2616415434
   env.NIX_LDFLAGS = "-lGL -lfontconfig";
 
-  postInstall = ''
-    for size in 48x48 128x128; do
-      mkdir -p $out/share/icons/hicolor/$size/apps
-      ln -s $out/share/Lagom/icons/$size/app-browser.png \
-        $out/share/icons/hicolor/$size/apps/ladybird.png
-    done
-  ''
-  + lib.optionalString stdenv.hostPlatform.isDarwin ''
+  postInstall = lib.optionalString stdenv.hostPlatform.isDarwin ''
     mkdir -p $out/Applications $out/bin
     mv $out/bundle/Ladybird.app $out/Applications
   '';
-
-  desktopItems = [
-    (makeDesktopItem {
-      name = "ladybird";
-      desktopName = "Ladybird";
-      exec = "Ladybird -- %U";
-      icon = "ladybird";
-      categories = [
-        "Network"
-        "WebBrowser"
-      ];
-      mimeTypes = [
-        "text/html"
-        "application/xhtml+xml"
-        "x-scheme-handler/http"
-        "x-scheme-handler/https"
-      ];
-      actions.new-window = {
-        name = "New Window";
-        exec = "Ladybird --new-window -- %U";
-      };
-    })
-  ];
 
   # Only Ladybird and WebContent need wrapped, if Qt is enabled.
   # On linux we end up wraping some non-Qt apps, like headless-browser.
@@ -198,6 +157,6 @@ stdenv.mkDerivation (finalAttrs: {
       "aarch64-darwin"
     ];
     mainProgram = "Ladybird";
-    broken = stdenv.hostPlatform.isDarwin;
+    # broken = stdenv.hostPlatform.isDarwin;
   };
 })
